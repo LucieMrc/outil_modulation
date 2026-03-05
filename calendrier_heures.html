@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="favicon2.png" />
+    <title>Calendrier Interactif de Fin d'Année</title>
+    <style>
+        :root {
+            --primary: #8e44ad; /* Mis en violet pour faire le lien avec le bouton */
+            --success: #27ae60;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text: #333;
+            --border: #ddd;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-color); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .header-panel { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 850px; margin-bottom: 20px; position: sticky; top: 10px; z-index: 100; }
+        h1 { margin-top: 0; font-size: 22px; text-align: center; color: var(--primary); }
+        .btn-back { display: block; text-align: center; margin-bottom: 15px; color: #3498db; text-decoration: none; font-size: 14px; font-weight: bold; }
+        .btn-back:hover { text-decoration: underline; }
+        .params-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .input-group { display: flex; flex-direction: column; }
+        .input-group label { font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #555; line-height: 1.2;}
+        .input-group input { padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 15px; }
+        .cp-highlight label { color: #d35400; }
+        .cp-highlight input { border-color: #e67e22; background-color: #fdf2e9;}
+        .summary { background: #f5eef8; padding: 15px; border-radius: 8px; text-align: center; font-size: 16px; font-weight: bold; border-left: 5px solid var(--primary); }
+        .summary-subtext { font-size: 13px; font-weight: normal; color: #666; margin-top: 5px; }
+        #final-date-banner { color: var(--success); font-size: 18px; margin-top: 10px; display: none; }
+        .calendar-container { width: 100%; max-width: 850px; background: var(--card-bg); border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); overflow: hidden; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th { background: var(--primary); color: white; padding: 12px; font-size: 14px; position: sticky; top: 0; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .day-input { width: 70px; padding: 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 15px; text-align: center; transition: border-color 0.2s; }
+        .day-input:focus { border-color: var(--primary); outline: none; }
+        .row-weekend { background-color: #f9f9f9; color: #888; }
+        .row-weekend .day-input { background-color: #eee; color: #888; }
+        .row-last { background-color: #d4edda !important; font-weight: bold; border-left: 5px solid var(--success); }
+        .remaining-cell { font-family: monospace; font-size: 15px; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="header-panel">
+    <a href="calcul_heures.html" class="btn-back">⬅ Retour au calculateur simple</a>
+    <h1>🗓️ Mon Planificateur Détaillé</h1>
+    
+    <div class="params-grid">
+        <div class="input-group">
+            <label>Départ du planning</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="input-group">
+            <label>Heures annuelles</label>
+            <input type="number" id="totalHours" value="1607" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Déjà travaillées</label>
+            <input type="number" id="workedHours" value="1050" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>Modulation</label>
+            <input type="number" id="modulation" value="0" step="0.1">
+        </div>
+        <div class="input-group cp-highlight">
+            <label>Jours CP prévus</label>
+            <input type="number" id="cpDays" value="5" step="0.5">
+        </div>
+        <div class="input-group">
+            <label>Heures/jour</label>
+            <input type="number" id="defaultHours" value="7" step="0.1">
+        </div>
+    </div>
+
+    <div class="summary">
+        Heures de présence réelles restantes : <span id="base-remaining">0</span> h
+        <div class="summary-subtext">
+            (Déjà déduit automatiquement : <span id="cp-hours-deducted">0</span> h pour vos jours de congés)
+        </div>
+        <div id="final-date-banner">🎉 Dernier jour de présence prévu le : <span id="final-date-text"></span></div>
+    </div>
+</div>
+
+<div class="calendar-container">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Heures travaillées</th>
+                <th>Compteur restant</th>
+            </tr>
+        </thead>
+        <tbody id="calendar-body">
+            <!-- Le calendrier sera généré ici -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+    let customDailyHours = {};
+
+    document.addEventListener("DOMContentLoaded", () => {
+        // --- NOUVEAUTÉ : Récupération des données venant de l'outil 1 ---
+        const params = new URLSearchParams(window.location.search);
+        
+        if(params.has('startDate')) document.getElementById('startDate').value = params.get('startDate');
+        else document.getElementById('startDate').valueAsDate = new Date();
+        
+        if(params.has('totalHours')) document.getElementById('totalHours').value = params.get('totalHours');
+        if(params.has('workedHours')) document.getElementById('workedHours').value = params.get('workedHours');
+        if(params.has('modulation')) document.getElementById('modulation').value = params.get('modulation');
+        if(params.has('cpDays')) document.getElementById('cpDays').value = params.get('cpDays');
+        if(params.has('defaultHours')) document.getElementById('defaultHours').value = params.get('defaultHours');
+        // -----------------------------------------------------------------
+
+        const inputs = document.querySelectorAll('.header-panel input');
+        inputs.forEach(input => { input.addEventListener('input', renderCalendar); });
+
+        renderCalendar();
+    });
+
+    function getEaster(year) {
+        let a = year % 19, b = Math.floor(year / 100), c = year % 100;
+        let d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+        let g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+        let i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+        let m = Math.floor((a + 11 * h + 22 * l) / 451), n = h + l - 7 * m + 114;
+        return new Date(year, Math.floor(n / 31) - 1, (n % 31) + 1);
+    }
+
+    function estFerieOuWeekEnd(date) {
+        let dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) return true; 
+        let y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
+        let dateStr = `${d}-${m}`;
+        let feriesFixes =['01-01', '01-05', '08-05', '14-07', '15-08', '01-11', '11-11', '25-12'];
+        let easter = getEaster(y);
+        let formatMobile = (dObj) => `${String(dObj.getDate()).padStart(2, '0')}-${String(dObj.getMonth() + 1).padStart(2, '0')}`;
+        let lundiPaques = new Date(easter); lundiPaques.setDate(easter.getDate() + 1);
+        let ascension = new Date(easter); ascension.setDate(easter.getDate() + 39);
+        let pentecote = new Date(easter); pentecote.setDate(easter.getDate() + 50);
+        return feriesFixes.includes(dateStr) ||[formatMobile(lundiPaques), formatMobile(ascension), formatMobile(pentecote)].includes(dateStr);
+    }
+
+    function formatAffichageDate(date) {
+        let options = { weekday: 'short', day: 'numeric', month: 'long' };
+        let str = date.toLocaleDateString('fr-FR', options);
+        return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function toYYYYMMDD(date) {
+        let y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    function updateDayHours(inputElement) {
+        let dateStr = inputElement.dataset.date;
+        let value = parseFloat(inputElement.value);
+        if (isNaN(value) || value < 0) value = 0;
+        customDailyHours[dateStr] = value;
+        renderCalendar(); 
+    }
+
+    function renderCalendar() {
+        let totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
+        let workedHours = parseFloat(document.getElementById('workedHours').value) || 0;
+        let modulation = parseFloat(document.getElementById('modulation').value) || 0;
+        let defaultHours = parseFloat(document.getElementById('defaultHours').value) || 7;
+        let cpDays = parseFloat(document.getElementById('cpDays').value) || 0;
+        let startDateInput = document.getElementById('startDate').value;
+
+        if (!startDateInput) return;
+
+        let cpHours = cpDays * defaultHours;
+        document.getElementById('cp-hours-deducted').innerText = cpHours.toFixed(1);
+
+        let baseRemaining = totalHours - workedHours - modulation - cpHours;
+        document.getElementById('base-remaining').innerText = baseRemaining.toFixed(2);
+        
+        let tbody = document.getElementById('calendar-body');
+        let banner = document.getElementById('final-date-banner');
+        tbody.innerHTML = '';
+        banner.style.display = 'none';
+
+        if (baseRemaining <= 0) {
+            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Vous avez déjà terminé vos heures de présence !</td></tr>';
+            return;
+        }
+
+        let currentDate = new Date(startDateInput);
+        let currentRemaining = baseRemaining;
+        let safeLoopLimit = 0; 
+
+        while (currentRemaining > 0 && safeLoopLimit < 730) {
+            safeLoopLimit++;
+            let dateKey = toYYYYMMDD(currentDate);
+            let isOff = estFerieOuWeekEnd(currentDate);
+            let heuresPrevues = isOff ? 0 : defaultHours;
+            
+            if (customDailyHours.hasOwnProperty(dateKey)) {
+                heuresPrevues = customDailyHours[dateKey];
+            }
+
+            currentRemaining -= heuresPrevues;
+
+            let tr = document.createElement('tr');
+            if (isOff) tr.classList.add('row-weekend');
+            if (currentRemaining <= 0) tr.classList.add('row-last');
+
+            let tdDate = document.createElement('td');
+            tdDate.innerText = formatAffichageDate(currentDate) + (isOff ? " (Férié/WE)" : "");
+
+            let tdInput = document.createElement('td');
+            tdInput.innerHTML = `<input type="number" step="0.5" min="0" class="day-input" data-date="${dateKey}" value="${heuresPrevues}" onchange="updateDayHours(this)"> h`;
+
+            let tdRemaining = document.createElement('td');
+            tdRemaining.className = 'remaining-cell';
+            tdRemaining.innerText = Math.max(0, currentRemaining).toFixed(2) + " h";
+
+            tr.appendChild(tdDate);
+            tr.appendChild(tdInput);
+            tr.appendChild(tdRemaining);
+            tbody.appendChild(tr);
+
+            if (currentRemaining <= 0) {
+                document.getElementById('final-date-text').innerText = formatAffichageDate(currentDate);
+                banner.style.display = 'block';
+                break;
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+    }
+</script>
+
+</body>
+</html>
