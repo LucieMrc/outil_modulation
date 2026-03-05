@@ -3,89 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/x-icon" href="favicon2.png" />
     <title>Calculateur de Fin d'Année</title>
+    <link rel="icon" type="image/x-icon" href="favicon2.png" />
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-        }
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            max-width: 500px;
-            width: 100%;
-        }
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            font-size: 22px;
-            margin-bottom: 20px;
-        }
-        .form-group {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin-bottom: 6px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        .note {
-            font-size: 12px;
-            color: #7f8c8d;
-            margin-bottom: 5px;
-            display: block;
-        }
-        input[type="number"], input[type="date"] {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 15px;
-        }
-        
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); max-width: 500px; width: 100%; }
+        h1 { text-align: center; color: #2c3e50; font-size: 22px; margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 14px; }
+        .note { font-size: 12px; color: #7f8c8d; margin-bottom: 5px; display: block; }
+        .note-alert { color: #e67e22; font-weight: bold; }
+        input[type="number"], input[type="date"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
         .cp-highlight label { color: #d35400; }
         .cp-highlight input { border-color: #e67e22; background-color: #fdf2e9; }
-
-        button {
-            width: 100%;
-            padding: 14px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 15px;
-            transition: background-color 0.3s;
-        }
+        button { width: 100%; padding: 14px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px; transition: background-color 0.3s; }
         button:hover { background-color: #2980b9; }
-        
-        /* Nouveau style pour le bouton vers le calendrier */
-        .btn-calendar {
-            background-color: #8e44ad;
-            margin-top: 10px;
-        }
+        .btn-calendar { background-color: #8e44ad; margin-top: 10px; }
         .btn-calendar:hover { background-color: #732d91; }
-
-        .result {
-            margin-top: 25px;
-            padding: 20px;
-            background-color: #e8f8f5;
-            border-left: 5px solid #1abc9c;
-            border-radius: 6px;
-            display: none;
-        }
+        .result { margin-top: 25px; padding: 20px; background-color: #e8f8f5; border-left: 5px solid #1abc9c; border-radius: 6px; display: none; }
         .result h2 { margin-top: 0; color: #16a085; font-size: 18px; }
         .result p { font-size: 15px; margin: 8px 0; }
         .sub-info { font-size: 13px; color: #7f8c8d; margin-top: -5px; margin-bottom: 10px; display: block; }
@@ -98,13 +33,14 @@
     <h1>🗓️ Quand vais-je finir mes heures ?</h1>
     
     <div class="form-group">
-        <label>Date de mise à jour (aujourd'hui)</label>
+        <label>Date de début du calcul</label>
+        <span class="note note-alert">⚠️ Mettez la date de DEMAIN si votre journée d'aujourd'hui est déjà terminée et incluse dans vos heures !</span>
         <input type="date" id="currentDate">
     </div>
 
     <div class="form-group">
         <label>Heures totales à travailler dans l'année</label>
-        <input type="number" id="totalHours" value="1607" step="0.1">
+        <input type="number" id="totalHours" value="1764" step="0.1">
     </div>
 
     <div class="form-group">
@@ -128,8 +64,6 @@
     </div>
 
     <button onclick="calculerFin()">Calculer ma date de fin</button>
-    
-    <!-- Nouveau bouton de liaison -->
     <button class="btn-calendar" onclick="allerVersCalendrier()">📅 Voir en mode Calendrier interactif</button>
 
     <div class="result" id="resultBox">
@@ -137,7 +71,7 @@
         <p>Heures de présence restantes : <strong id="hoursLeft"></strong> h</p>
         <span class="sub-info">(Déjà déduit : <span id="cpDeducted"></span> h pour vos jours de CP)</span>
         
-        <p>Jours ouvrés restants : <strong id="daysLeft"></strong> jours</p>
+        <p>Jours ouvrés restants pleins : <strong id="daysLeft"></strong> jours</p>
         <hr style="border:0; border-top:1px solid #1abc9c; margin: 15px 0;">
         <p>Dernier jour de présence prévu le :</p>
         <p class="highlight" id="endDate"></p>
@@ -167,8 +101,7 @@
         let lundiDePaques = new Date(easter); lundiDePaques.setDate(easter.getDate() + 1);
         let ascension = new Date(easter); ascension.setDate(easter.getDate() + 39);
         let pentecote = new Date(easter); pentecote.setDate(easter.getDate() + 50);
-        let feriesMobiles =[formatMobile(lundiDePaques), formatMobile(ascension), formatMobile(pentecote)];
-        return feriesFixes.includes(dateStr) || feriesMobiles.includes(dateStr);
+        return feriesFixes.includes(dateStr) ||[formatMobile(lundiDePaques), formatMobile(ascension), formatMobile(pentecote)].includes(dateStr);
     }
 
     function calculerFin() {
@@ -193,16 +126,29 @@
             return;
         }
 
-        let joursRestants = Math.ceil(heuresRestantes / hoursPerDay);
-        document.getElementById('hoursLeft').innerText = heuresRestantes.toFixed(2);
-        document.getElementById('daysLeft').innerText = joursRestants;
-
+        // --- NOUVELLE LOGIQUE IDENTIQUE AU CALENDRIER ---
         let calculDate = new Date(currentDateInput);
-        let joursAjoutes = 0;
-        while (joursAjoutes < joursRestants) {
+        let currentRemaining = heuresRestantes;
+        let joursOuvresComptes = 0;
+        let safeLoopLimit = 0;
+
+        while (currentRemaining > 0 && safeLoopLimit < 730) {
+            safeLoopLimit++;
+            
+            if (!estFerieOuWeekEnd(calculDate)) {
+                currentRemaining -= hoursPerDay;
+                joursOuvresComptes++;
+            }
+            
+            if (currentRemaining <= 0) {
+                break; // On a trouvé le jour de fin, on s'arrête net !
+            }
+            
             calculDate.setDate(calculDate.getDate() + 1); 
-            if (!estFerieOuWeekEnd(calculDate)) joursAjoutes++;
         }
+
+        document.getElementById('hoursLeft').innerText = heuresRestantes.toFixed(2);
+        document.getElementById('daysLeft').innerText = joursOuvresComptes;
 
         let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         let dateFormatee = calculDate.toLocaleDateString('fr-FR', options);
@@ -212,7 +158,6 @@
         resultBox.style.display = 'block';
     }
 
-    // NOUVELLE FONCTION : Transférer les données vers l'outil Calendrier
     function allerVersCalendrier() {
         let params = new URLSearchParams({
             startDate: document.getElementById('currentDate').value,
@@ -222,8 +167,6 @@
             defaultHours: document.getElementById('hoursPerDay').value,
             cpDays: document.getElementById('cpDays').value
         });
-        
-        // Redirige vers le fichier du calendrier en injectant les données dans l'URL
         window.location.href = "calendrier_heures.html?" + params.toString();
     }
 </script>
