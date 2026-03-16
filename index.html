@@ -163,58 +163,86 @@
     }
 
     function calculerFin() {
-        let currentDateInput = document.getElementById('currentDate').value;
-        let totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
-        let workedHours = parseFloat(document.getElementById('workedHours').value) || 0;
-        let modulation = parseFloat(document.getElementById('modulation').value) || 0;
-        let hoursPerDay = parseFloat(document.getElementById('hoursPerDay').value) || 7;
-        let cpDays = parseFloat(document.getElementById('cpDays').value) || 0;
+    let currentDateInput = document.getElementById('currentDate').value;
+    let totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
+    let workedHours = parseFloat(document.getElementById('workedHours').value) || 0;
+    let modulation = parseFloat(document.getElementById('modulation').value) || 0;
+    let hoursPerDay = parseFloat(document.getElementById('hoursPerDay').value) || 7;
+    let cpDays = parseFloat(document.getElementById('cpDays').value) || 0;
 
-        let cpHours = cpDays * hoursPerDay;
-        let heuresRestantes = totalHours - workedHours - modulation - cpHours;
-        
-        let resultBox = document.getElementById('resultBox');
-        document.getElementById('cpDeducted').innerText = cpHours.toFixed(1);
+    // 1. Calcul des heures de présence pures à effectuer
+    let cpHours = cpDays * hoursPerDay;
+    let heuresRestantesAPresenter = totalHours - workedHours - modulation - cpHours;
+    
+    let resultBox = document.getElementById('resultBox');
+    document.getElementById('cpDeducted').innerText = cpHours.toFixed(1);
 
-        if (heuresRestantes <= 0) {
-            document.getElementById('hoursLeft').innerText = "0";
-            document.getElementById('daysLeft').innerText = "0";
-            document.getElementById('endDate').innerText = "🎉 Vous avez déjà atteint votre quota de présence !";
-            resultBox.style.display = 'block';
-            return;
-        }
-
-        // --- NOUVELLE LOGIQUE IDENTIQUE AU CALENDRIER ---
-        let calculDate = new Date(currentDateInput);
-        let currentRemaining = heuresRestantes;
-        let joursOuvresComptes = 0;
-        let safeLoopLimit = 0;
-
-        while (currentRemaining > 0 && safeLoopLimit < 730) {
-            safeLoopLimit++;
-            
-            if (!estFerieOuWeekEnd(calculDate)) {
-                currentRemaining -= hoursPerDay;
-                joursOuvresComptes++;
-            }
-            
-            if (currentRemaining <= 0) {
-                break; // On a trouvé le jour de fin, on s'arrête net !
-            }
-            
-            calculDate.setDate(calculDate.getDate() + 1); 
-        }
-
-        document.getElementById('hoursLeft').innerText = heuresRestantes.toFixed(2);
-        document.getElementById('daysLeft').innerText = joursOuvresComptes;
-
-        let options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        let dateFormatee = calculDate.toLocaleDateString('fr-FR', options);
-        dateFormatee = dateFormatee.charAt(0).toUpperCase() + dateFormatee.slice(1);
-
-        document.getElementById('endDate').innerText = "🗓️ " + dateFormatee;
+    if (heuresRestantesAPresenter <= 0) {
+        document.getElementById('hoursLeft').innerText = "0";
+        document.getElementById('daysLeft').innerText = "0";
+        document.getElementById('endDate').innerText = "🎉 Quota atteint ! (CP inclus)";
         resultBox.style.display = 'block';
+        return;
     }
+
+    // 2. Calcul de la Date Limite de Présence (31 Juillet - jours de CP)
+    let anneeCible = new Date(currentDateInput).getFullYear();
+    let deadlineFinale = new Date(anneeCible, 6, 31); // 31 Juillet
+    if (new Date(currentDateInput) > deadlineFinale) deadlineFinale.setFullYear(anneeCible + 1);
+
+    let dateLimitePresence = new Date(deadlineFinale);
+    let joursCPRemontes = 0;
+    while (joursCPRemontes < cpDays) {
+        dateLimitePresence.setDate(dateLimitePresence.getDate() - 1);
+        if (!estFerieOuWeekEnd(dateLimitePresence)) {
+            joursCPRemontes++;
+        }
+    }
+
+    // 3. Calcul de la date de fin réelle selon le rythme actuel
+    let calculDate = new Date(currentDateInput);
+    let resteAProduire = heuresRestantesAPresenter;
+    let joursOuvresComptes = 0;
+    while (resteAProduire > 0) {
+        if (!estFerieOuWeekEnd(calculDate)) {
+            resteAProduire -= hoursPerDay;
+            joursOuvresComptes++;
+        }
+        if (resteAProduire <= 0) break;
+        calculDate.setDate(calculDate.getDate() + 1);
+    }
+
+    // 4. Alerte si on dépasse la date limite de présence
+    let alerteHTML = "";
+    if (calculDate > dateLimitePresence) {
+        let joursOuvresDisponibles = 0;
+        let tempDate = new Date(currentDateInput);
+        while (tempDate <= dateLimitePresence) {
+            if (!estFerieOuWeekEnd(tempDate)) joursOuvresDisponibles++;
+            tempDate.setDate(tempDate.getDate() + 1);
+        }
+        
+        let tauxRequis = heuresRestantesAPresenter / joursOuvresDisponibles;
+        alerteHTML = `
+            <div id="deadlineAlert" style="color: #e67e22; margin-top: 15px; padding: 12px; border: 2px dashed #e67e22; border-radius: 8px; background-color: #fff9f4;">
+                ⚠️ <strong>Alerte Planning :</strong><br>
+                Vos CP commencent le ${dateLimitePresence.toLocaleDateString('fr-FR')}.<br>
+                Pour libérer ces jours, vous devez travailler :<br>
+                <strong style="font-size: 1.1em;">🚀 ${tauxRequis.toFixed(2)} h / jour</strong><br>
+                au lieu de ${hoursPerDay}h.
+            </div>`;
+    }
+
+    document.getElementById('hoursLeft').innerText = heuresRestantesAPresenter.toFixed(2);
+    document.getElementById('daysLeft').innerText = joursOuvresComptes;
+    document.getElementById('endDate').innerText = "🗓️ " + calculDate.toLocaleDateString('fr-FR', {weekday: 'long', day: 'numeric', month: 'long'});
+    
+    let oldAlert = document.getElementById('deadlineAlert');
+    if (oldAlert) oldAlert.remove();
+    resultBox.style.display = 'block';
+    if (alerteHTML) resultBox.insertAdjacentHTML('beforeend', alerteHTML);
+}
+
 
     function allerVersCalendrier() {
         let params = new URLSearchParams({

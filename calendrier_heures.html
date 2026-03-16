@@ -185,76 +185,97 @@
         customDailyHours[dateStr] = value;
         renderCalendar(); 
     }
-
     function renderCalendar() {
-        let totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
-        let workedHours = parseFloat(document.getElementById('workedHours').value) || 0;
-        let modulation = parseFloat(document.getElementById('modulation').value) || 0;
-        let defaultHours = parseFloat(document.getElementById('defaultHours').value) || 7;
-        let cpDays = parseFloat(document.getElementById('cpDays').value) || 0;
-        let startDateInput = document.getElementById('startDate').value;
+    let totalHours = parseFloat(document.getElementById('totalHours').value) || 0;
+    let workedHours = parseFloat(document.getElementById('workedHours').value) || 0;
+    let modulation = parseFloat(document.getElementById('modulation').value) || 0;
+    let defaultHours = parseFloat(document.getElementById('defaultHours').value) || 7;
+    let cpDays = parseFloat(document.getElementById('cpDays').value) || 0;
+    let startDateInput = document.getElementById('startDate').value;
 
-        if (!startDateInput) return;
+    if (!startDateInput) return;
 
-        let cpHours = cpDays * defaultHours;
-        document.getElementById('cp-hours-deducted').innerText = cpHours.toFixed(1);
+    let cpHours = cpDays * defaultHours;
+    let baseRemaining = totalHours - workedHours - modulation - cpHours;
+    
+    document.getElementById('cp-hours-deducted').innerText = cpHours.toFixed(1);
+    document.getElementById('base-remaining').innerText = baseRemaining.toFixed(2);
+    
+    let tbody = document.getElementById('calendar-body');
+    let banner = document.getElementById('final-date-banner');
+    tbody.innerHTML = '';
+    banner.style.display = 'none';
 
-        let baseRemaining = totalHours - workedHours - modulation - cpHours;
-        document.getElementById('base-remaining').innerText = baseRemaining.toFixed(2);
-        
-        let tbody = document.getElementById('calendar-body');
-        let banner = document.getElementById('final-date-banner');
-        tbody.innerHTML = '';
-        banner.style.display = 'none';
+    // CALCUL DE LA ZONE DE CP (Remontée depuis le 31 juillet)
+    let deadlineFinale = new Date(new Date(startDateInput).getFullYear(), 6, 31);
+    if (new Date(startDateInput) > deadlineFinale) deadlineFinale.setFullYear(deadlineFinale.getFullYear() + 1);
 
-        if (baseRemaining <= 0) {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">Vous avez déjà terminé vos heures de présence !</td></tr>';
-            return;
+    let dateLimitePresence = new Date(deadlineFinale);
+    let cpCount = 0;
+    let joursCPDates = []; // Liste des dates qui sont des CP
+
+    while (cpCount < cpDays) {
+        if (!estFerieOuWeekEnd(dateLimitePresence)) {
+            joursCPDates.push(toYYYYMMDD(dateLimitePresence));
+            cpCount++;
         }
-
-        let currentDate = new Date(startDateInput);
-        let currentRemaining = baseRemaining;
-        let safeLoopLimit = 0; 
-
-        while (currentRemaining > 0 && safeLoopLimit < 730) {
-            safeLoopLimit++;
-            let dateKey = toYYYYMMDD(currentDate);
-            let isOff = estFerieOuWeekEnd(currentDate);
-            let heuresPrevues = isOff ? 0 : defaultHours;
-            
-            if (customDailyHours.hasOwnProperty(dateKey)) {
-                heuresPrevues = customDailyHours[dateKey];
-            }
-
-            currentRemaining -= heuresPrevues;
-
-            let tr = document.createElement('tr');
-            if (isOff) tr.classList.add('row-weekend');
-            if (currentRemaining <= 0) tr.classList.add('row-last');
-
-            let tdDate = document.createElement('td');
-            tdDate.innerText = formatAffichageDate(currentDate) + (isOff ? " (Férié/WE)" : "");
-
-            let tdInput = document.createElement('td');
-            tdInput.innerHTML = `<input type="number" step="0.5" min="0" class="day-input" data-date="${dateKey}" value="${heuresPrevues}" onchange="updateDayHours(this)"> h`;
-
-            let tdRemaining = document.createElement('td');
-            tdRemaining.className = 'remaining-cell';
-            tdRemaining.innerText = Math.max(0, currentRemaining).toFixed(2) + " h";
-
-            tr.appendChild(tdDate);
-            tr.appendChild(tdInput);
-            tr.appendChild(tdRemaining);
-            tbody.appendChild(tr);
-
-            if (currentRemaining <= 0) {
-                document.getElementById('final-date-text').innerText = formatAffichageDate(currentDate);
-                banner.style.display = 'block';
-                break;
-            }
-            currentDate.setDate(currentDate.getDate() + 1);
-        }
+        dateLimitePresence.setDate(dateLimitePresence.getDate() - 1);
     }
+
+    let currentDate = new Date(startDateInput);
+    let currentRemaining = baseRemaining;
+    let safeLoopLimit = 0; 
+
+    while ((currentRemaining > 0 || currentDate <= deadlineFinale) && safeLoopLimit < 500) {
+        safeLoopLimit++;
+        let dateKey = toYYYYMMDD(currentDate);
+        let isOff = estFerieOuWeekEnd(currentDate);
+        let isCP = joursCPDates.includes(dateKey);
+        
+        let heuresPrevues = isOff ? 0 : (isCP ? 0 : defaultHours);
+        if (customDailyHours.hasOwnProperty(dateKey)) {
+            heuresPrevues = customDailyHours[dateKey];
+        }
+
+        if (!isCP) currentRemaining -= heuresPrevues;
+
+        let tr = document.createElement('tr');
+        if (isOff) tr.classList.add('row-weekend');
+        if (currentRemaining <= 0 && !isCP) tr.classList.add('row-last');
+        
+        // Style spécial pour les CP
+        if (isCP) {
+            tr.style.backgroundColor = "#fff9c4"; // Jaune clair
+            tr.style.fontWeight = "bold";
+        }
+
+        let tdDate = document.createElement('td');
+        let texteDate = formatAffichageDate(currentDate);
+        if (isCP) texteDate += " ⛱️ CONGÉS";
+        else if (isOff) texteDate += " (Repos)";
+        tdDate.innerText = texteDate;
+
+        let tdInput = document.createElement('td');
+        tdInput.innerHTML = isCP ? "CP (7h acquis)" : `<input type="number" step="0.5" class="day-input" data-date="${dateKey}" value="${heuresPrevues}" onchange="updateDayHours(this)"> h`;
+
+        let tdRemaining = document.createElement('td');
+        tdRemaining.className = 'remaining-cell';
+        tdRemaining.innerText = isCP ? "-" : Math.max(0, currentRemaining).toFixed(2) + " h";
+
+        tr.appendChild(tdDate);
+        tr.appendChild(tdInput);
+        tr.appendChild(tdRemaining);
+        tbody.appendChild(tr);
+
+        if (currentRemaining <= 0 && !isCP && banner.style.display === 'none') {
+            document.getElementById('final-date-text').innerText = formatAffichageDate(currentDate);
+            banner.style.display = 'block';
+        }
+        
+        if (currentDate >= deadlineFinale && currentRemaining <= 0) break;
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+}
 </script>
 
 </body>
